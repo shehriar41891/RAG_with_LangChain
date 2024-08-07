@@ -1,0 +1,8 @@
+# Ignore the virtual environment
+newvenv/
+
+# Ignore env file
+*.env
+
+#ignore requirements.txt
+requirements.txt

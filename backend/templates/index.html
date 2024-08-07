@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot with PDF Upload</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Chat with Your PDF</h1>
+        </div>
+        <div id="chat-box">
+            <div id="messages"></div>
+            <div id="input-area">
+                <input type="file" id="pdf-file" accept="application/pdf" style="display: none;" onchange="uploadPDF()">
+                <button onclick="document.getElementById('pdf-file').click()" id="upload-btn">📄 Upload</button>
+                <input type="text" id="message" placeholder="Type a message...">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function sendMessage() {
+            const message = document.getElementById('message').value;
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const messages = document.getElementById('messages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message bot';
+                messageDiv.textContent = `Bot: ${data.response}`;
+                messages.appendChild(messageDiv);
+                messages.scrollTop = messages.scrollHeight; // Scroll to the bottom
+                document.getElementById('message').value = ''; // Clear input field
+            });
+        }
+
+        function uploadPDF() {
+            const fileInput = document.getElementById('pdf-file');
+            const file = fileInput.files[0];
+            console.log('File selected:', file);
+
+            if (!file) {
+                alert('No file selected!');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('PDF is uploaded sucessfully!');
+                    console.log(data.text); // Handle the extracted text here
+                }
+            })
+            .catch(error => {
+                console.error('Error uploading file:', error);
+            });
+        }
+    </script>
+</body>
+</html>

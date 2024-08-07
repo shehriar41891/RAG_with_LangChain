@@ -1,0 +1,111 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #e8f5e9; /* Light green background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px; /* Adjust max width for larger screens */
+    height: 90vh; /* Adjust height to leave space for header */
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    background: #ffffff;
+}
+
+.header {
+    background-color: #4caf50; /* Dark green */
+    color: white;
+    padding: 16px;
+    text-align: center;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+#chat-box {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+#messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #c8e6c9; /* Lighter green */
+    border-radius: 8px;
+    background: #f1f8e9; /* Very light green */
+}
+
+.message {
+    margin-bottom: 10px;
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 75%;
+    word-wrap: break-word;
+}
+
+.bot {
+    background: #a5d6a7; /* Light green */
+    align-self: flex-start;
+}
+
+.user {
+    background: #c8e6c9; /* Slightly darker light green */
+    align-self: flex-end;
+}
+
+#input-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-top: 1px solid #c8e6c9;
+    background: #ffffff;
+}
+
+#input-area input[type="text"] {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #a5d6a7;
+    border-radius: 20px;
+    outline: none;
+    font-size: 14px;
+}
+
+button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    background-color: #388e3c; /* Green */
+    color: white;
+    font-size: 14px;
+    outline: none;
+}
+
+button:hover {
+    background-color: #2c6b2f; /* Darker green */
+}
+
+#upload-btn {
+    background-color: #4caf50; /* Dark green */
+}
+
+#upload-btn:hover {
+    background-color: #388e3c; /* Darker green */
+}
