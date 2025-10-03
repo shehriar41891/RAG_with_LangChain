@@ -60,7 +60,7 @@ def upload_file():
     for ids_vectors_chunk in chunks(data_to_upsert, batch_size=200):
         index_.upsert(vectors=ids_vectors_chunk)
     print('The data is ready is usperted')
- 
+    print('I am doing small test chnage here in server.py')
     return jsonify({'response': 'Data is ready to chat'})
         
 
