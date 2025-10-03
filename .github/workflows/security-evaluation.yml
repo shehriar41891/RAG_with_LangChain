@@ -1,225 +1,244 @@
-stages:
-  - security_check
+name: Security Evaluation Check
 
-security_evaluation:
-  stage: security_check
-  image: python:3.9-slim
-  
-  variables:
-    API_BASE_URL: "https://api.aginiti.com/api/v1"
-    RISK_THRESHOLD: "50.0"
-  
-  before_script:
-    - pip install requests
-  
-  script:
-    - |
-      python3 << 'EOF'
-      import requests
-      import time
-      import json
-      import os
-      import sys
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
 
-      API_BASE_URL = os.environ.get("API_BASE_URL")
-      API_KEY = os.environ.get("AGINITI_API_KEY")
-      USER_ID = os.environ.get("AGINITI_USER_ID")
-      REPO_URL = os.environ.get("CI_REPOSITORY_URL")
-      RISK_THRESHOLD = float(os.environ.get("RISK_THRESHOLD", "50.0"))
-      
-      # OWASP categories to evaluate
-      OWASP_CATEGORIES = [
-          "prompt-injection",
-          "insecure-output-handling",
-          "sensitive-information-disclosure",
-          "unbounded-consumption",
-          "system-prompt-leakage",
-          "vector-and-embedding-weaknesses",
-          "excessive-agency",
-      ]
+jobs:
+  security-evaluation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      if not API_KEY or not USER_ID:
-          print("❌ ERROR: AGINITI_API_KEY and AGINITI_USER_ID must be set as CI/CD variables")
-          sys.exit(1)
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-      print("🔍 Starting security evaluation...")
-      print(f"Repository: {REPO_URL}")
-      print(f"User ID: {USER_ID}")
-      print(f"Risk Threshold: {RISK_THRESHOLD}")
-      print(f"Categories to evaluate: {', '.join(OWASP_CATEGORIES)}")
-      
-      # Start evaluation
-      # Build form data with multiple owasp_top_10 fields
-      payload = {
-          "user_id": USER_ID,
-          "github_link": REPO_URL,
-          "use_llm": "true",
-          "api_key": API_KEY
-      }
-      
-      # Add each OWASP category as a separate form field
-      form_data = []
-      for key, value in payload.items():
-          form_data.append((key, value))
-      
-      for category in OWASP_CATEGORIES:
-          form_data.append(("owasp_top_10", category))
+      - name: Install dependencies
+        run: |
+          pip install requests
 
-      try:
-          print("\n📤 Submitting evaluation request...")
-          response = requests.post(
-              f"{API_BASE_URL}/evaluate",
-              data=payload,
-              headers=headers,
-              timeout=30
-          )
-          response.raise_for_status()
+      - name: Run Security Evaluation
+        id: security_check
+        env:
+          API_KEY: 7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d
+          USER_ID: Shehriar101105
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python << 'EOF'
+          import requests
+          import time
+          import json
+          import os
+          import sys
+
+          API_BASE_URL = "https://api.aginiti.com/api/v1"
+          API_KEY = os.environ.get("API_KEY")
+          USER_ID = os.environ.get("USER_ID")
+          GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+          REPO_URL = f"https://github.com/{os.environ.get('GITHUB_REPOSITORY')}"
           
-          result = response.json()
-          job_id = result.get("job_id")
+          # Risk score threshold
+          RISK_THRESHOLD = 50.0
           
-          if not job_id:
-              print("❌ ERROR: No job ID returned from API")
+          # OWASP categories to evaluate
+          OWASP_CATEGORIES = [
+              "prompt-injection",
+              "insecure-output-handling",
+              "sensitive-information-disclosure",
+              "unbounded-consumption",
+              "system-prompt-leakage",
+              "vector-and-embedding-weaknesses",
+              "excessive-agency",
+          ]
+
+          if not API_KEY or not USER_ID:
+              print("❌ ERROR: AGINITI_API_KEY and AGINITI_USER_ID must be set in repository secrets")
               sys.exit(1)
+
+          print("🔍 Starting security evaluation...")
+          print(f"Repository: {REPO_URL}")
+          print(f"User ID: {USER_ID}")
+          print(f"Categories to evaluate: {', '.join(OWASP_CATEGORIES)}")
           
-          print(f"✅ Evaluation started with job ID: {job_id}")
+          # Start evaluation
+          # Build form data with multiple owasp_top_10 fields
+          payload = {
+              "user_id": USER_ID,
+              "github_link": REPO_URL,
+              "use_llm": "true",
+              "api_key": API_KEY
+          }
           
-          # Poll for results
-          print("\n⏳ Waiting for evaluation to complete...")
-          max_wait_time = 1800  # 30 minutes
-          poll_interval = 15
-          elapsed_time = 0
+          # Add each OWASP category as a separate form field
+          form_data = []
+          for key, value in payload.items():
+              form_data.append((key, value))
           
-          while elapsed_time < max_wait_time:
-              time.sleep(poll_interval)
-              elapsed_time += poll_interval
-              
-              status_response = requests.get(
-                  f"{API_BASE_URL}/evaluation_status/{job_id}",
-                  params={"user_id": USER_ID},
+          for category in OWASP_CATEGORIES:
+              form_data.append(("owasp_top_10", category))
+
+          try:
+              print("\n📤 Submitting evaluation request...")
+              response = requests.post(
+                  f"{API_BASE_URL}/evaluate",
+                  data=form_data,
                   timeout=30
               )
-              status_response.raise_for_status()
+              response.raise_for_status()
               
-              status_data = status_response.json()
-              status = status_data.get("status")
+              result = response.json()
+              job_id = result.get("job_id")
               
-              if status == "completed":
-                  # Check if this is a premature completion (0% or no real results)
-                  progress_str = status_data.get("progress", "0%")
-                  progress_num = int(progress_str.rstrip('%'))
-                  
-                  # Handle both response formats
-                  if "results" in status_data:
-                      results_wrapper = status_data.get("results", {})
-                      if "results" in results_wrapper:
-                          results = results_wrapper.get("results", {})
-                      else:
-                          results = results_wrapper
-                  else:
-                      results = {}
-                  
-                  summary = results.get("summary", {})
-                  
-                  # If progress is less than 100% or no issues found yet, keep waiting
-                  if progress_num < 100 and summary.get("total_issues", 0) == 0 and elapsed_time < max_wait_time:
-                      print(f"⚠️  Evaluation marked complete but progress is {progress_str} - continuing to wait...")
-                      continue
-                  
-                  print("✅ Evaluation completed!")
-                  results = status_data.get("results", {}).get("results", {})
-                  summary = results.get("summary", {})
-                  
-                  risk_score = summary.get("risk_score", 0)
-                  total_issues = summary.get("total_issues", 0)
-                  high_risk = summary.get("high_risk_issues", 0)
-                  medium_risk = summary.get("medium_risk_issues", 0)
-                  low_risk = summary.get("low_risk_issues", 0)
-                  business_impact = summary.get("business_impact", "Unknown")
-                  
-                  print("\n" + "="*60)
-                  print("📊 SECURITY EVALUATION RESULTS")
-                  print("="*60)
-                  print(f"Risk Score: {risk_score}/100")
-                  print(f"Total Issues: {total_issues}")
-                  print(f"  - High Risk: {high_risk}")
-                  print(f"  - Medium Risk: {medium_risk}")
-                  print(f"  - Low Risk: {low_risk}")
-                  print(f"Business Impact: {business_impact}")
-                  print("="*60)
-                  
-                  # Display security evaluations
-                  security_evals = results.get("security_evaluations", [])
-                  if security_evals:
-                      print("\n🔍 Detected Issues by Category:")
-                      for eval_item in security_evals:
-                          category = eval_item.get("category", "Unknown")
-                          issues = eval_item.get("issues", [])
-                          if issues:
-                              print(f"\n  📌 {category.upper()}:")
-                              for issue in issues:
-                                  if issue.get("found", False):
-                                      print(f"    - {issue.get('issue', 'Unknown issue')}")
-                                      print(f"      Risk: {issue.get('risk_level', 'unknown')}")
-                                      print(f"      File: {issue.get('file', 'unknown')}")
-                                      if issue.get('recommendation'):
-                                          print(f"      Fix: {issue.get('recommendation', 'N/A')}")
-                  
-                  # Save results as artifact
-                  with open('security_evaluation_results.json', 'w') as f:
-                      json.dump(status_data, f, indent=2)
-                  print("\n💾 Results saved to security_evaluation_results.json")
-                  
-                  # Check if risk score exceeds threshold
-                  if risk_score > RISK_THRESHOLD:
-                      print(f"\n❌ FAILED: Risk score ({risk_score}) exceeds threshold ({RISK_THRESHOLD})")
-                      print("🚫 Merge blocked due to security concerns")
-                      sys.exit(1)
-                  else:
-                      print(f"\n✅ PASSED: Risk score ({risk_score}) is within acceptable threshold ({RISK_THRESHOLD})")
-                      print("✅ Security evaluation passed - code can be merged")
-                      sys.exit(0)
-              
-              elif status == "failed":
-                  error_msg = status_data.get("message", "Unknown error")
-                  print(f"❌ Evaluation failed: {error_msg}")
+              if not job_id:
+                  print("❌ ERROR: No job ID returned from API")
                   sys.exit(1)
               
-              elif status in ["running", "pending"]:
-                  progress = status_data.get("progress", "0%")
-                  print(f"⏳ Status: {status} ({progress}) - elapsed time: {elapsed_time}s")
+              print(f"✅ Evaluation started with job ID: {job_id}")
               
-              else:
-                  print(f"⚠️  Unknown status: {status}")
-          
-          print("❌ Evaluation timed out")
-          sys.exit(1)
-          
-      except requests.exceptions.RequestException as e:
-          print(f"❌ API request failed: {str(e)}")
-          sys.exit(1)
-      except Exception as e:
-          print(f"❌ Unexpected error: {str(e)}")
-          import traceback
-          traceback.print_exc()
-          sys.exit(1)
-      EOF
-  
-  artifacts:
-    reports:
-      junit: security_evaluation_results.json
-    paths:
-      - security_evaluation_results.json
-    expire_in: 30 days
-    when: always
-  
-  only:
-    - merge_requests
-    - main
-    - master
-  
-  retry:
-    max: 2
-    when:
-      - api_failure
-      - runner_system_failure
+              # Poll for results
+              print("\n⏳ Waiting for evaluation to complete...")
+              max_wait_time = 1800  # 30 minutes
+              poll_interval = 15
+              elapsed_time = 0
+              
+              while elapsed_time < max_wait_time:
+                  time.sleep(poll_interval)
+                  elapsed_time += poll_interval
+                  
+                  status_response = requests.get(
+                      f"{API_BASE_URL}/evaluation_status/{job_id}",
+                      params={"user_id": USER_ID},
+                      timeout=30
+                  )
+                  status_response.raise_for_status()
+                  
+                  status_data = status_response.json()
+                  status = status_data.get("status")
+                  
+                  if status == "completed":
+                      print("✅ Evaluation completed!")
+                      results = status_data.get("results", {}).get("results", {})
+                      summary = results.get("summary", {})
+                      
+                      risk_score = summary.get("risk_score", 0)
+                      total_issues = summary.get("total_issues", 0)
+                      high_risk = summary.get("high_risk_issues", 0)
+                      medium_risk = summary.get("medium_risk_issues", 0)
+                      low_risk = summary.get("low_risk_issues", 0)
+                      business_impact = summary.get("business_impact", "Unknown")
+                      
+                      print("\n" + "="*60)
+                      print("📊 SECURITY EVALUATION RESULTS")
+                      print("="*60)
+                      print(f"Risk Score: {risk_score}/100")
+                      print(f"Total Issues: {total_issues}")
+                      print(f"  - High Risk: {high_risk}")
+                      print(f"  - Medium Risk: {medium_risk}")
+                      print(f"  - Low Risk: {low_risk}")
+                      print(f"Business Impact: {business_impact}")
+                      print("="*60)
+                      
+                      # Display security evaluations
+                      security_evals = results.get("security_evaluations", [])
+                      if security_evals:
+                          print("\n🔍 Detected Issues by Category:")
+                          for eval_item in security_evals:
+                              category = eval_item.get("category", "Unknown")
+                              issues = eval_item.get("issues", [])
+                              if issues:
+                                  print(f"\n  📌 {category.upper()}:")
+                                  for issue in issues:
+                                      if issue.get("found", False):
+                                          print(f"    - {issue.get('issue', 'Unknown issue')}")
+                                          print(f"      Risk: {issue.get('risk_level', 'unknown')}")
+                                          print(f"      File: {issue.get('file', 'unknown')}")
+                      
+                      # Check if risk score exceeds threshold
+                      if risk_score > RISK_THRESHOLD:
+                          print(f"\n❌ FAILED: Risk score ({risk_score}) exceeds threshold ({RISK_THRESHOLD})")
+                          print("🚫 Code merge blocked due to security concerns")
+                          
+                          # Write summary to GitHub step output
+                          with open(os.environ.get('GITHUB_STEP_SUMMARY', 'summary.md'), 'w') as f:
+                              f.write("## 🚨 Security Evaluation Failed\n\n")
+                              f.write(f"**Risk Score:** {risk_score}/100 (Threshold: {RISK_THRESHOLD})\n\n")
+                              f.write(f"**Total Issues:** {total_issues}\n")
+                              f.write(f"- High Risk: {high_risk}\n")
+                              f.write(f"- Medium Risk: {medium_risk}\n")
+                              f.write(f"- Low Risk: {low_risk}\n\n")
+                              f.write(f"**Business Impact:** {business_impact}\n\n")
+                              f.write("### Issues Found:\n\n")
+                              for eval_item in security_evals:
+                                  category = eval_item.get("category", "Unknown")
+                                  issues = eval_item.get("issues", [])
+                                  if issues:
+                                      f.write(f"#### {category}\n")
+                                      for issue in issues:
+                                          if issue.get("found", False):
+                                              f.write(f"- **{issue.get('issue', 'Unknown')}** (Risk: {issue.get('risk_level', 'unknown')})\n")
+                                              f.write(f"  - File: `{issue.get('file', 'unknown')}`\n")
+                                              f.write(f"  - Recommendation: {issue.get('recommendation', 'N/A')}\n\n")
+                          
+                          sys.exit(1)
+                      else:
+                          print(f"\n✅ PASSED: Risk score ({risk_score}) is within acceptable threshold ({RISK_THRESHOLD})")
+                          print("✅ Security evaluation passed - code can be merged")
+                          
+                          # Write success summary
+                          with open(os.environ.get('GITHUB_STEP_SUMMARY', 'summary.md'), 'w') as f:
+                              f.write("## ✅ Security Evaluation Passed\n\n")
+                              f.write(f"**Risk Score:** {risk_score}/100 (Threshold: {RISK_THRESHOLD})\n\n")
+                              f.write(f"**Total Issues:** {total_issues}\n")
+                              f.write(f"- High Risk: {high_risk}\n")
+                              f.write(f"- Medium Risk: {medium_risk}\n")
+                              f.write(f"- Low Risk: {low_risk}\n\n")
+                              f.write("The code meets security standards and can be merged.\n")
+                          
+                          sys.exit(0)
+                  
+                  elif status == "failed":
+                      error_msg = status_data.get("message", "Unknown error")
+                      print(f"❌ Evaluation failed: {error_msg}")
+                      sys.exit(1)
+                  
+                  elif status in ["running", "pending"]:
+                      progress = status_data.get("progress", "0%")
+                      print(f"⏳ Status: {status} ({progress}) - elapsed time: {elapsed_time}s")
+                  
+                  else:
+                      print(f"⚠️  Unknown status: {status}")
+              
+              print("❌ Evaluation timed out")
+              sys.exit(1)
+              
+          except requests.exceptions.RequestException as e:
+              print(f"❌ API request failed: {str(e)}")
+              sys.exit(1)
+          except Exception as e:
+              print(f"❌ Unexpected error: {str(e)}")
+              sys.exit(1)
+          EOF
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 🚨 Security Evaluation Failed\n\nThe security evaluation detected issues that exceed the acceptable risk threshold. Please review the security findings in the workflow run and address the identified vulnerabilities before merging.\n\n[View detailed results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+            })

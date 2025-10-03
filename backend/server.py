@@ -52,7 +52,9 @@ def upload_file():
     embedding_list = create_embedding(splitted_document)
     print('created the embedding')
         #make the pinecone connection 
+    print('The pinecone connection is made')
     pinecone_connection()
+    print('The pinecone connection is made')
         #formating the data to upsert 
     data_to_upsert = upsert_data(embedding_list,splitted_document)
     print('The data to upsert is ready')
