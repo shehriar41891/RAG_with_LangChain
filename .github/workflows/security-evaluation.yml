@@ -43,7 +43,7 @@ jobs:
           import os
           import sys
 
-          API_BASE_URL = "https://api.aginiti.com"
+          API_BASE_URL = "https://api.aginiti.com/api/v1"
           API_KEY = os.environ.get("API_KEY")
           USER_ID = os.environ.get("USER_ID")
           GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
