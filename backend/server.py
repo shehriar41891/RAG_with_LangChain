@@ -19,6 +19,7 @@ def index():
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.get_json()
+    x = 3
     user_message = data.get('message')
     # Here, add your chatbot logic to respond to the user_message
     response = f"Echo: {user_message}"
@@ -59,6 +60,7 @@ def upload_file():
     print(index)
     for ids_vectors_chunk in chunks(data_to_upsert, batch_size=200):
         index_.upsert(vectors=ids_vectors_chunk)
+    print('The data is ready is usperted')
     print('The data is ready is usperted')
     print('The data is ready is usperted')
     return jsonify({'response': 'Data is ready to chat'})

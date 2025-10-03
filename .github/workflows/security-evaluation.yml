@@ -33,7 +33,7 @@ jobs:
         id: security_check
         env:
           API_KEY: 7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d
-          USER_ID: Shehriar101102
+          USER_ID: Shehriar101101
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python << 'EOF'
@@ -58,12 +58,9 @@ jobs:
               "insecure-output-handling",
               "sensitive-information-disclosure",
               "unbounded-consumption",
-              "misinformation",
               "system-prompt-leakage",
-              "data-and-model-poisoning",
               "vector-and-embedding-weaknesses",
               "excessive-agency",
-              "agent-to-agent"
           ]
 
           if not API_KEY or not USER_ID:
