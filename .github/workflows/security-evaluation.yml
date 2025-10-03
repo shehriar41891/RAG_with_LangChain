@@ -1,0 +1,244 @@
+name: Security Evaluation Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  security-evaluation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run Security Evaluation
+        id: security_check
+        env:
+          API_KEY: 7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d
+          USER_ID: Shehriar101102
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python << 'EOF'
+          import requests
+          import time
+          import json
+          import os
+          import sys
+
+          API_BASE_URL = "https://api.aginiti.com"
+          API_KEY = os.environ.get("API_KEY")
+          USER_ID = os.environ.get("USER_ID")
+          GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+          REPO_URL = f"https://github.com/{os.environ.get('GITHUB_REPOSITORY')}"
+          
+          # Risk score threshold
+          RISK_THRESHOLD = 50.0
+          
+          # OWASP categories to evaluate
+          OWASP_CATEGORIES = [
+              "prompt-injection",
+              "insecure-output-handling",
+              "sensitive-information-disclosure",
+              "unbounded-consumption",
+              "misinformation",
+              "system-prompt-leakage",
+              "data-and-model-poisoning",
+              "vector-and-embedding-weaknesses",
+              "excessive-agency",
+              "agent-to-agent"
+          ]
+
+          if not API_KEY or not USER_ID:
+              print("❌ ERROR: AGINITI_API_KEY and AGINITI_USER_ID must be set in repository secrets")
+              sys.exit(1)
+
+          print("🔍 Starting security evaluation...")
+          print(f"Repository: {REPO_URL}")
+          print(f"User ID: {USER_ID}")
+          
+          # Start evaluation
+          headers = {"Content-Type": "application/x-www-form-urlencoded"}
+          
+          payload = {
+              "user_id": USER_ID,
+              "github_link": REPO_URL,
+              "use_llm": True,
+              "api_key": API_KEY
+          }
+          
+          # Add OWASP categories
+          for category in OWASP_CATEGORIES:
+              payload[f"owasp_top_10"] = category
+
+          try:
+              print("\n📤 Submitting evaluation request...")
+              response = requests.post(
+                  f"{API_BASE_URL}/evaluate",
+                  data=payload,
+                  headers=headers,
+                  timeout=30
+              )
+              response.raise_for_status()
+              
+              result = response.json()
+              job_id = result.get("job_id")
+              
+              if not job_id:
+                  print("❌ ERROR: No job ID returned from API")
+                  sys.exit(1)
+              
+              print(f"✅ Evaluation started with job ID: {job_id}")
+              
+              # Poll for results
+              print("\n⏳ Waiting for evaluation to complete...")
+              max_wait_time = 1800  # 30 minutes
+              poll_interval = 15
+              elapsed_time = 0
+              
+              while elapsed_time < max_wait_time:
+                  time.sleep(poll_interval)
+                  elapsed_time += poll_interval
+                  
+                  status_response = requests.get(
+                      f"{API_BASE_URL}/evaluation_status/{job_id}",
+                      params={"user_id": USER_ID},
+                      timeout=30
+                  )
+                  status_response.raise_for_status()
+                  
+                  status_data = status_response.json()
+                  status = status_data.get("status")
+                  
+                  if status == "completed":
+                      print("✅ Evaluation completed!")
+                      results = status_data.get("results", {}).get("results", {})
+                      summary = results.get("summary", {})
+                      
+                      risk_score = summary.get("risk_score", 0)
+                      total_issues = summary.get("total_issues", 0)
+                      high_risk = summary.get("high_risk_issues", 0)
+                      medium_risk = summary.get("medium_risk_issues", 0)
+                      low_risk = summary.get("low_risk_issues", 0)
+                      business_impact = summary.get("business_impact", "Unknown")
+                      
+                      print("\n" + "="*60)
+                      print("📊 SECURITY EVALUATION RESULTS")
+                      print("="*60)
+                      print(f"Risk Score: {risk_score}/100")
+                      print(f"Total Issues: {total_issues}")
+                      print(f"  - High Risk: {high_risk}")
+                      print(f"  - Medium Risk: {medium_risk}")
+                      print(f"  - Low Risk: {low_risk}")
+                      print(f"Business Impact: {business_impact}")
+                      print("="*60)
+                      
+                      # Display security evaluations
+                      security_evals = results.get("security_evaluations", [])
+                      if security_evals:
+                          print("\n🔍 Detected Issues by Category:")
+                          for eval_item in security_evals:
+                              category = eval_item.get("category", "Unknown")
+                              issues = eval_item.get("issues", [])
+                              if issues:
+                                  print(f"\n  📌 {category.upper()}:")
+                                  for issue in issues:
+                                      if issue.get("found", False):
+                                          print(f"    - {issue.get('issue', 'Unknown issue')}")
+                                          print(f"      Risk: {issue.get('risk_level', 'unknown')}")
+                                          print(f"      File: {issue.get('file', 'unknown')}")
+                      
+                      # Check if risk score exceeds threshold
+                      if risk_score > RISK_THRESHOLD:
+                          print(f"\n❌ FAILED: Risk score ({risk_score}) exceeds threshold ({RISK_THRESHOLD})")
+                          print("🚫 Code merge blocked due to security concerns")
+                          
+                          # Write summary to GitHub step output
+                          with open(os.environ.get('GITHUB_STEP_SUMMARY', 'summary.md'), 'w') as f:
+                              f.write("## 🚨 Security Evaluation Failed\n\n")
+                              f.write(f"**Risk Score:** {risk_score}/100 (Threshold: {RISK_THRESHOLD})\n\n")
+                              f.write(f"**Total Issues:** {total_issues}\n")
+                              f.write(f"- High Risk: {high_risk}\n")
+                              f.write(f"- Medium Risk: {medium_risk}\n")
+                              f.write(f"- Low Risk: {low_risk}\n\n")
+                              f.write(f"**Business Impact:** {business_impact}\n\n")
+                              f.write("### Issues Found:\n\n")
+                              for eval_item in security_evals:
+                                  category = eval_item.get("category", "Unknown")
+                                  issues = eval_item.get("issues", [])
+                                  if issues:
+                                      f.write(f"#### {category}\n")
+                                      for issue in issues:
+                                          if issue.get("found", False):
+                                              f.write(f"- **{issue.get('issue', 'Unknown')}** (Risk: {issue.get('risk_level', 'unknown')})\n")
+                                              f.write(f"  - File: `{issue.get('file', 'unknown')}`\n")
+                                              f.write(f"  - Recommendation: {issue.get('recommendation', 'N/A')}\n\n")
+                          
+                          sys.exit(1)
+                      else:
+                          print(f"\n✅ PASSED: Risk score ({risk_score}) is within acceptable threshold ({RISK_THRESHOLD})")
+                          print("✅ Security evaluation passed - code can be merged")
+                          
+                          # Write success summary
+                          with open(os.environ.get('GITHUB_STEP_SUMMARY', 'summary.md'), 'w') as f:
+                              f.write("## ✅ Security Evaluation Passed\n\n")
+                              f.write(f"**Risk Score:** {risk_score}/100 (Threshold: {RISK_THRESHOLD})\n\n")
+                              f.write(f"**Total Issues:** {total_issues}\n")
+                              f.write(f"- High Risk: {high_risk}\n")
+                              f.write(f"- Medium Risk: {medium_risk}\n")
+                              f.write(f"- Low Risk: {low_risk}\n\n")
+                              f.write("The code meets security standards and can be merged.\n")
+                          
+                          sys.exit(0)
+                  
+                  elif status == "failed":
+                      error_msg = status_data.get("message", "Unknown error")
+                      print(f"❌ Evaluation failed: {error_msg}")
+                      sys.exit(1)
+                  
+                  elif status in ["running", "pending"]:
+                      progress = status_data.get("progress", "0%")
+                      print(f"⏳ Status: {status} ({progress}) - elapsed time: {elapsed_time}s")
+                  
+                  else:
+                      print(f"⚠️  Unknown status: {status}")
+              
+              print("❌ Evaluation timed out")
+              sys.exit(1)
+              
+          except requests.exceptions.RequestException as e:
+              print(f"❌ API request failed: {str(e)}")
+              sys.exit(1)
+          except Exception as e:
+              print(f"❌ Unexpected error: {str(e)}")
+              sys.exit(1)
+          EOF
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 🚨 Security Evaluation Failed\n\nThe security evaluation detected issues that exceed the acceptable risk threshold. Please review the security findings in the workflow run and address the identified vulnerabilities before merging.\n\n[View detailed results](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})'
+            })
