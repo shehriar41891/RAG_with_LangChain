@@ -51,6 +51,7 @@ def upload_file():
         #create the embeddings of the chunks 
     embedding_list = create_embedding(splitted_document)
     print('created the embedding')
+    print('created the embedding')
         #make the pinecone connection 
     print('The pinecone connection is made')
     pinecone_connection()
