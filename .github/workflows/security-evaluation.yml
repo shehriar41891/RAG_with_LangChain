@@ -33,12 +33,9 @@ security_evaluation:
           "insecure-output-handling",
           "sensitive-information-disclosure",
           "unbounded-consumption",
-          "misinformation",
           "system-prompt-leakage",
-          "data-and-model-poisoning",
           "vector-and-embedding-weaknesses",
           "excessive-agency",
-          "agent-to-agent"
       ]
 
       if not API_KEY or not USER_ID:
