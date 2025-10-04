@@ -35,7 +35,7 @@ print('Small chnage at  the begninig')
 #instantiate the openai 
 llm = OpenAI(api_key=openai_api_key)
 
-
+print('Added some chnage here')
 # In[6]:
 
 
